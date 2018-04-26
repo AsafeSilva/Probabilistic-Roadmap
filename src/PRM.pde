@@ -17,12 +17,12 @@ class PRM {
   public int MAX_NODES = 130;
 
   /**
-   * Distância mínima para se conectar a outro node
+   * Distância mínima entre cada node
    */
   public int MIN_DIST_NEIGHBORS = 50;
 
   /**
-   * Distância máxima entre cada node
+   * Distância máxima para realizar a "conexão"
    */
   public int MAX_DIST_NEIGHBORS = 150;
 
