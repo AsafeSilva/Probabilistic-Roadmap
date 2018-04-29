@@ -10,7 +10,7 @@ A classe `PRM` gera os `nodes` aleatoriamente, e cria conexões (`Edge`) entre e
 
 - **MAX_DIST_NEIGHBORS**: Distância máxima para realizar a "conexão"
 
-- **DIST_OBSTACLE**: Distância entre um node e um obstáculo
+- **SAFE_ZONE**: Parâmetro que corresponde ao quanto (em pixes) o mapa será inflado
 
 - **OPTIMIZE**: Flag boleana. Se 'true', o caminho gerado será otimizado
 
@@ -19,6 +19,14 @@ O algoritmo `PRM` possui basicamente duas fases: uma de construção e outra de 
 Este programa foi criado com o [Processing](https://processing.org/) devido a praticidade de criar a interface com os desenhos e o carregamento das imagens. Assim foi, pois o intuito da criação deste código foi o aprendizado do funcionamento do algoritmo.
 
 ## Demonstração
+
+- Resultado final
+
+![Front](front.gif)
+
+- Resultado mostrando Nodes e mapa inflado
+
+![Back](back.gif)
 
 - Algoritmo sem otimização da rota
 
