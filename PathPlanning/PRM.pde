@@ -14,7 +14,7 @@ class PRM {
   /**
    * Quantidade máxima de nodes
    */
-  public int MAX_NODES = 130;
+  public int MAX_NODES = 145;
 
   /**
    * Distância mínima entre cada node
@@ -24,12 +24,12 @@ class PRM {
   /**
    * Distância máxima para realizar a "conexão"
    */
-  public int MAX_DIST_NEIGHBORS = 150;
+  public int MAX_DIST_NEIGHBORS = 200;
 
   /**
-   * Distância entre um node e um obstáculo
+   * Parâmetro que corresponde ao quanto (em pixes) o mapa será inflado
    */
-  public int DIST_OBSTACLE = 10;
+  public int SAFE_ZONE = 5;
 
   /**
    * Se 'true', o caminho gerado será otimizado
@@ -42,9 +42,9 @@ class PRM {
   protected boolean[][] occGrid;
 
   /**
-   * Variáveis que armazenam as dimensões do mapa
+   * Matriz que contém as distâncias de manhattan para inflar o mapa
    */
-  private int gridWidth, gridHeight;
+  private int[][] manhattanGrid;
 
   /**
    * Um {@link List} de {@link Node} que armazena todos os nodes gerados
@@ -73,25 +73,22 @@ class PRM {
    */
   public PRM(PImage map) { 
 
-    try {
-      this.map = (PImage) map.clone();
-      occGrid = new boolean[map.width][map.height];
-      for (int x = 0; x < map.width; x++) {
-        for (int y = 0; y < map.height; y++) {
-          occGrid[x][y] = (map.pixels[x + y * map.width] & 0xFF) == 0;
-        }
+    this.map = map;
+    this.map.loadPixels();
+
+    occGrid = new boolean[map.width][map.height];
+    for (int x = 0; x < map.width; x++) {
+      for (int y = 0; y < map.height; y++) {
+        occGrid[x][y] = (map.pixels[x + y * map.width] & 0xFF) == 0;
       }
     }
-    catch(CloneNotSupportedException e) {
-      e.printStackTrace();
-    }
-
-    this.gridWidth = map.width;
-    this.gridHeight = map.height;
 
     nodes = new ArrayList<Node>();
     edges = new ArrayList<Edge>();
     path = new ArrayList<Node>();
+
+    // Criar array (2D) com as distâncias de Manhattan
+    manhattanGrid = manhattan(occGrid);
   }
 
   /**
@@ -99,12 +96,26 @@ class PRM {
    * com os paramêtros especificados para o posterior planejamento do caminho
    */
   public void plan() {
+
+    // Infla o mapa
+    if (SAFE_ZONE > 0) {
+      this.map.loadPixels();
+      for (int x = 0; x < this.map.width; x++) {
+        for (int y = 0; y < this.map.height; y++) {
+          occGrid[x][y] = (manhattanGrid[x][y] <= SAFE_ZONE);
+          this.map.pixels[x + this.map.width * y] = occGrid[x][y] ? color(0, 0, 0) : color(255, 255, 255);
+        }
+      }
+      this.map.updatePixels();
+    }
+
+    // Gera os 'Nodes'
     int id = 0;
     while (id < MAX_NODES) {
 
       // Gera posição aleatória
-      int x = (int)random(this.gridWidth);
-      int y = (int)random(this.gridHeight);
+      int x = (int)random(this.map.width);
+      int y = (int)random(this.map.height);
 
       // Procura vizinho próximo
       boolean closeNeighbor = false;
@@ -117,12 +128,6 @@ class PRM {
 
       // Livre de obstáculo e longe de vizinhos ?
       if (!occGrid[x][y] && !closeNeighbor) {
-
-        // Dentro da zona segura ?
-        if (DIST_OBSTACLE > 0) {
-          if (!safeArea(x, y))
-            continue;
-        }
 
         // Cria novo Node
         Node newNode = new Node(x, y, id);
@@ -191,9 +196,9 @@ class PRM {
     for (Node node : nodes) {
       float distance = dist(goal.getX(), goal.getY(), node.getX(), node.getY());
       if (testPath(node, goal)) {
-          shorterDistance = distance;
-          idCloser = node.getID();
-        }
+        shorterDistance = distance;
+        idCloser = node.getID();
+      }
     }
 
     Node newGoal = nodes.get(idCloser);
@@ -213,7 +218,7 @@ class PRM {
       current = openList.get(0);
       for (Node node : openList) {
         if (node.getCost() < current.getCost())
-        current = node;
+          current = node;
       }
 
       // Remove da lista aberta e adiciona na lista fechada
@@ -231,7 +236,7 @@ class PRM {
           current = current.getParentNode();
 
           if (current.getID() == start.getID())
-          break;
+            break;
         }
 
         tempPath.add(start);
@@ -259,7 +264,7 @@ class PRM {
 
     // Otimiza o 'path' gerado
     if (OPTIMIZE)
-    optimizePath(tempPath, start, goal);
+      optimizePath(tempPath, start, goal);
 
     path = tempPath;
   }
@@ -323,7 +328,7 @@ class PRM {
 
     while (t < 1) {
       if (occGrid[x][y])
-      return false; 
+        return false; 
 
       t += alpha; 
       x = (int)((1 - t) * node.getX() + t * neighbor.getX()); 
@@ -334,22 +339,46 @@ class PRM {
   }
 
   /**
-   * Testa se um quadrado centrado nos pontos (x, y) intercepta obstáculos
+   * Calcula a distância de Manhattan de cada pixel para até um obstáculo
    * 
-   * @param x A abiscisa do ponto
-   * @param y A ordenada do ponto
-   * @return Retorna 'true' caso o ponto estaja longe de obstáculos. Caso contrário, 'false' 
+   * Adaptado de 'https://blog.ostermiller.org/dilate-and-erode'
+   *
+   * @param occGrid A matriz que representa o mapa
+   * @return Retorna uma matriz (int[][]) com as distâncias de manhattan 
    */
-  private boolean safeArea(int x, int y) {
-    PImage safeArea = map.get(x-DIST_OBSTACLE, y-DIST_OBSTACLE, 2*DIST_OBSTACLE, 2*DIST_OBSTACLE);
-    safeArea.loadPixels();
+  private int[][] manhattan(boolean[][] occGrid) {
 
-    for (int i = 0; i < safeArea.width * safeArea.height; i++) {
-      if ((safeArea.pixels[i] & 0xFF) == 0)
-      return false;
+    int[][] manhattanDistance = new int[occGrid.length][occGrid[1].length];
+
+    // traverse from top left to bottom right
+    for (int i=0; i<occGrid.length; i++) {
+      for (int j=0; j<occGrid[i].length; j++) {
+        if (occGrid[i][j] == true) {
+          // first pass and pixel was on, it gets a zero
+          manhattanDistance[i][j] = 0;
+        } else {
+          // pixel was off
+          // It is at most the sum of the lengths of the array
+          // away from a pixel that is on
+          manhattanDistance[i][j] = occGrid.length + occGrid[i].length;
+          // or one more than the pixel to the north
+          if (i>0) manhattanDistance[i][j] = Math.min(manhattanDistance[i][j], manhattanDistance[i-1][j]+1);
+          // or one more than the pixel to the west
+          if (j>0) manhattanDistance[i][j] = Math.min(manhattanDistance[i][j], manhattanDistance[i][j-1]+1);
+        }
+      }
     }
-
-    return true;
+    // traverse from bottom right to top left
+    for (int i=occGrid.length-1; i>=0; i--) {
+      for (int j=occGrid[i].length-1; j>=0; j--) {
+        // either what we had on the first pass
+        // or one more than the pixel to the south
+        if (i+1<occGrid.length) manhattanDistance[i][j] = Math.min(manhattanDistance[i][j], manhattanDistance[i+1][j]+1);
+        // or one more than the pixel to the east
+        if (j+1<occGrid[i].length) manhattanDistance[i][j] = Math.min(manhattanDistance[i][j], manhattanDistance[i][j+1]+1);
+      }
+    }
+    return manhattanDistance;
   }
 
   /**

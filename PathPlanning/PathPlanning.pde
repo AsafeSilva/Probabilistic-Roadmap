@@ -10,11 +10,18 @@ void setup() {
   background(255);
 
   // ==== Load map
-  map = loadImage("OccupanceGrid.bmp");
-  map.loadPixels();
+  map = loadImage("OccupancyGrid.bmp");
 
   // ==== Probabilistic Roadmap
   prm = new PRM(map);
+
+  // PRM Parameters
+  prm.MAX_NODES = 140;
+  prm.MIN_DIST_NEIGHBORS = 50;
+  prm.MAX_DIST_NEIGHBORS = 200;
+  prm.SAFE_ZONE = 5;
+  prm.OPTIMIZE = true;
+
   prm.plan();   
 
   start = new Node(color(0, 255, 0), -1);
